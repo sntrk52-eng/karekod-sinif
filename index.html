@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#00796B" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/png" href="./icon-512.png" />
+  <link rel="apple-touch-icon" href="./icon-512.png" />
+  <title>KareKod Sınıf — Akıllı Sınıf Yanıt & Ölçme Değerlendirme Sistemi</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f0fdfa; color: #0f172a; }
+    .teal-gradient { background: linear-gradient(135deg, #00796B 0%, #004D40 100%); }
+    .amber-badge { background: linear-gradient(135deg, #FFC107 0%, #FF8F00 100%); color: #0f172a; }
+    @media print {
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      .card-page { page-break-after: always; }
+    }
+    @keyframes podiumRise {
+      0% { transform: translateY(80px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+    .podium-animate { animation: podiumRise 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- ÜST BİLGİ & MOD SEÇİM ÇUBUĞU -->
+  <header class="teal-gradient text-white shadow-lg sticky top-0 z-40 no-print">
+    <div class="max-w-7xl mx-auto px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl amber-badge flex items-center justify-center font-black text-xl shadow">K</div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-extrabold text-lg tracking-tight">KareKod Sınıf</h1>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-200 border border-emerald-300/30 font-semibold" id="cloudStatusBadge">🟢 Senkron Aktif</span>
+          </div>
+          <p class="text-xs text-teal-100">Ölçme Değerlendirme & Akıllı Tahta Yanıt Sistemi</p>
+        </div>
+      </div>
+
+      <!-- ODA KODU VE SENKRON ANAHTARI -->
+      <div class="flex items-center gap-2 bg-black/25 px-3 py-1.5 rounded-xl border border-white/15">
+        <span class="text-xs font-medium text-teal-100">Oda Kodu:</span>
+        <input id="roomCodeInput" type="text" value="SAMET52" onchange="changeRoomCode(this.value)" class="w-24 bg-white/10 text-amber-300 font-bold text-xs px-2 py-1 rounded border border-white/20 uppercase text-center focus:outline-none" />
+        <button onclick="syncAllDataNow()" title="Şimdi Eşitle" class="text-xs bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold px-2.5 py-1 rounded-lg transition">🔄 Eşitle</button>
+      </div>
+
+      <!-- ANA SEKMELER -->
+      <nav class="flex flex-wrap items-center gap-1.5">
+        <button onclick="switchMainTab('mobile')" id="tabBtn-mobile" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 shadow transition">📱 Mobil Kumanda</button>
+        <button onclick="switchMainTab('board')" id="tabBtn-board" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition">🖥️ Akıllı Tahta</button>
+        <button onclick="switchMainTab('analytics')" id="tabBtn-analytics" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition">📊 Ölçme & Analiz</button>
+        <button onclick="switchMainTab('cards')" id="tabBtn-cards" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition">🖨️ Kartlar & PDF</button>
+        <button onclick="openQuestionEditorModal()" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-400 hover:bg-emerald-300 text-slate-950 shadow transition">✍️ Sınırsız Soru Ekle</button>
+        <button onclick="openAIStudioModal()" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-400 hover:bg-purple-300 text-slate-950 shadow transition">✨ AI Soru Üret</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ANA İÇERİK ALANI -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 md:p-5 no-print">
+
+    <!-- 1. SEKME: MOBİL KUMANDA VE KAMERA OKUYUCU -->
+    <section id="view-mobile" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <!-- Sol Sütun: Sınıf ve Sınav Seçimi -->
+      <div class="lg:col-span-4 space-y-4">
+        <div class="bg-white rounded-2xl shadow-sm border border-teal-100 p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-extrabold text-slate-800 text-sm uppercase tracking-wider">🏫 Sınıflarım</h2>
+            <button onclick="addNewClassPrompt()" class="text-xs font-bold text-teal-700 hover:underline">+ Sınıf Ekle</button>
+          </div>
+          <div id="classListContainer" class="space-y-2"></div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-teal-100 p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-extrabold text-slate-800 text-sm uppercase tracking-wider">📚 Soru Paketlerim</h2>
+            <button onclick="openQuestionEditorModal()" class="text-xs font-bold text-teal-700 hover:underline">+ Yeni/Düzenle</button>
+          </div>
+          <div id="packListContainer" class="space-y-2"></div>
+        </div>
+      </div>
+
+      <!-- Sağ Sütun: Canlı Telefon Kumandası & Kamera -->
+      <div class="lg:col-span-8 space-y-4">
+        <div class="bg-white rounded-2xl shadow-md border border-teal-200 overflow-hidden">
+          <!-- Kumanda Üst Başlığı -->
+          <div class="bg-slate-900 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span id="mobileActiveClassBadge" class="px-2.5 py-0.5 rounded-lg bg-teal-600 text-xs font-bold">5-A</span>
+              <span id="mobileActivePackTitle" class="font-bold text-sm text-amber-300">6A TÜRKÇE - Sözcükte Anlam</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="mobileQuestionCounter" class="text-xs font-extrabold bg-white/10 px-2.5 py-1 rounded-lg">Soru 1 / 5</span>
+              <button onclick="clearCurrentQuestionResponses()" class="text-xs bg-rose-600 hover:bg-rose-500 px-2.5 py-1 rounded-lg font-bold">Yanıtları Sıfırla</button>
+            </div>
+          </div>
+
+          <div class="p-4 space-y-4">
+            <!-- Kazanım Etiketi -->
+            <div class="text-xs font-semibold text-teal-800 bg-teal-50 border border-teal-200 rounded-xl px-3 py-1.5" id="mobileKazanimText">
+              Kazanım: T.6.3.5. Bağlamdan yararlanarak bilmediği kelime ve kelime gruplarının anlamını tahmin eder.
+            </div>
+
+            <!-- Soru Metni -->
+            <h3 id="mobileQuestionText" class="text-lg md:text-xl font-extrabold text-slate-900 leading-snug"></h3>
+
+            <!-- Şıklar (Öğretmen Telefonda Dağılımı Görür) -->
+            <div id="mobileOptionsList" class="space-y-2.5"></div>
+
+            <!-- Canlı İstatistik Özeti -->
+            <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center">
+              <div class="bg-emerald-50 rounded-xl p-2">
+                <div id="mobileStatAccuracy" class="text-lg font-black text-emerald-700">%0</div>
+                <div class="text-[11px] font-semibold text-slate-500">Doğruluk Oranı</div>
+              </div>
+              <div class="bg-teal-50 rounded-xl p-2">
+                <div id="mobileStatAnswered" class="text-lg font-black text-teal-700">0 / 12</div>
+                <div class="text-[11px] font-semibold text-slate-500">Okunan Kart</div>
+              </div>
+              <div class="bg-amber-50 rounded-xl p-2">
+                <div id="mobileStatMissing" class="text-lg font-black text-amber-700">12</div>
+                <div class="text-[11px] font-semibold text-slate-500">Bekleyen Öğrenci</div>
+              </div>
+            </div>
+
+            <!-- Süre ve Kürsü Kısayol Butonları -->
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="text-xs font-bold text-slate-500 mr-1">⏱️ Tahta Süresi:</span>
+                <button onclick="startCountdown(30)" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-teal-600 hover:text-white text-xs font-bold transition">30 sn</button>
+                <button onclick="startCountdown(45)" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-teal-600 hover:text-white text-xs font-bold transition">45 sn</button>
+                <button onclick="startCountdown(60)" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-teal-600 hover:text-white text-xs font-bold transition">1 dk</button>
+                <button onclick="startCountdown(120)" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-teal-600 hover:text-white text-xs font-bold transition">2 dk</button>
+                <button onclick="stopCountdown()" class="px-2 py-1 rounded-lg bg-rose-100 text-rose-700 text-xs font-bold">Durdur</button>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button onclick="toggleRevealCorrect()" id="btnRevealCorrectMobile" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow">✅ Doğru Cevabı Göster</button>
+                <button onclick="openPodiumModal()" class="px-3 py-1.5 rounded-xl amber-badge text-xs font-extrabold shadow">🏆 Kürsü & İlk 3</button>
+              </div>
+            </div>
+
+            <!-- Soru Geçiş ve Kamera Butonu -->
+            <div class="flex items-center justify-between pt-3 border-t border-slate-200">
+              <button onclick="prevQuestion()" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-xs text-slate-700">◀ Önceki Soru</button>
+              <button onclick="toggleCameraScanner()" id="cameraToggleBtn" class="px-6 py-3 rounded-2xl teal-gradient text-white font-black text-sm shadow-lg flex items-center gap-2 hover:opacity-95">
+                📷 Kamerayı Aç (Kart Okut)
+              </button>
+              <button onclick="nextQuestion()" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-xs text-slate-700">Sonraki Soru ▶</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kamera Okuma ve Hızlı Simülasyon Paneli -->
+        <div id="cameraPanel" class="hidden bg-slate-900 text-white rounded-2xl p-4 space-y-3 shadow-xl">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-rose-500 animate-pulse"></span>
+              <span class="font-bold text-sm">Canlı AR KareKod Okuyucu (İlk Cevap Kilitli 🔒)</span>
+            </div>
+            <button onclick="simulateClassScan()" class="px-3 py-1 rounded-lg bg-amber-400 text-slate-950 font-extrabold text-xs">⚡ Tüm Sınıfı Hızlı Okut (Test)</button>
+          </div>
+          <div class="relative bg-black rounded-xl overflow-hidden aspect-video max-h-80 mx-auto flex items-center justify-center">
+            <video id="scannerVideo" class="w-full h-full object-cover" playsinline muted></video>
+            <canvas id="scannerCanvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+            <div id="cameraStatusOverlay" class="absolute bottom-3 left-3 right-3 bg-black/70 backdrop-blur px-3 py-2 rounded-xl text-xs flex items-center justify-between">
+              <span>Kamerayı öğrenci kartlarına tutun (Üstteki kenar A/B/C/D şıkkını belirler)</span>
+              <span id="lastScannedBadge" class="font-bold text-amber-300">Hazır</span>
+            </div>
+          </div>
+          <!-- Kamera Altı Öğrenci Durum Çekmecesi -->
+          <div class="bg-slate-800/90 rounded-xl p-3">
+            <div class="text-xs font-bold text-teal-300 mb-2">Öğrenci Okuma Durumu (Tıklayarak Manuel Şık Girilebilir):</div>
+            <div id="mobileStudentChips" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. SEKME: AKILLI TAHTA SUNUM EKRANI (KOPYA KORUMALI) -->
+    <section id="view-board" class="hidden space-y-4">
+      <div class="bg-white rounded-3xl shadow-xl border-2 border-teal-600/20 overflow-hidden">
+        <!-- Tahta Üst Kontrol ve Geri Sayım Barı -->
+        <div class="bg-slate-900 text-white px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <span class="px-3 py-1 rounded-xl bg-teal-500 text-slate-950 font-black text-sm" id="boardClassBadge">5-A</span>
+            <div>
+              <h2 id="boardPackTitle" class="font-extrabold text-base md:text-lg text-amber-300">6A TÜRKÇE</h2>
+              <p id="boardKazanimText" class="text-xs text-slate-300"></p>
+            </div>
+          </div>
+
+          <!-- Geri Sayım Sayacı ve Hızlı Süre Butonları -->
+          <div class="flex flex-wrap items-center gap-2">
+            <div id="boardTimerBox" class="px-4 py-1.5 rounded-2xl bg-slate-800 border border-slate-700 font-mono text-2xl font-black text-amber-400">
+              00:30
+            </div>
+            <button onclick="startCountdown(30)" class="px-2.5 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-600 text-xs font-bold">30 sn</button>
+            <button onclick="startCountdown(45)" class="px-2.5 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-600 text-xs font-bold">45 sn</button>
+            <button onclick="startCountdown(60)" class="px-2.5 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-600 text-xs font-bold">1 dk</button>
+            <button onclick="startCountdown(120)" class="px-2.5 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-600 text-xs font-bold">2 dk</button>
+            <button onclick="playSchoolBell()" class="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold">🔔 Zil</button>
+            <button onclick="pickRandomStudent()" class="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-extrabold">🎡 Söz Hakkı</button>
+            <button onclick="openPodiumModal()" class="px-3 py-1.5 rounded-xl amber-badge text-xs font-extrabold">🏆 Kürsü & İlk 3</button>
+          </div>
+        </div>
+
+        <!-- Kopya Korumalı Gizli Yanıt İlerleme Çubuğu -->
+        <div class="bg-teal-950 text-teal-100 px-6 py-2.5 flex items-center justify-between text-xs font-bold">
+          <span>🛡️ Kopya Korumalı Gizli Yanıt Modu Aktif (Şık sayıları ve öğrenci tercihleri tahtada gizlidir)</span>
+          <span id="boardProgressLabel" class="text-amber-300 font-extrabold text-sm">0 / 12 Kart Okundu (%0)</span>
+        </div>
+
+        <!-- Tahta Ana Gövde: Sol Soru, Sağ Öğrenci Okundu Durumu -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 p-6 gap-6 items-start">
+          <div class="lg:col-span-8 space-y-6">
+            <div class="flex items-center justify-between">
+              <span id="boardQuestionNumber" class="px-4 py-1.5 rounded-full bg-teal-100 text-teal-900 font-black text-sm">SORU 1 / 5</span>
+              <div class="flex items-center gap-2">
+                <button onclick="prevQuestion()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-xs">◀ Önceki</button>
+                <button onclick="toggleRevealCorrect()" id="btnRevealCorrectBoard" class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs">✅ Doğru Cevabı Açıkla</button>
+                <button onclick="nextQuestion()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-xs">Sonraki ▶</button>
+              </div>
+            </div>
+
+            <div id="boardQuestionText" class="text-2xl md:text-3xl font-black text-slate-900 leading-relaxed bg-slate-50 p-6 rounded-2xl border border-slate-200"></div>
+
+            <!-- Şıklar (Sayılar Gizli, Sadece Doğru Cevap Açıklanınca Yeşil Yanar) -->
+            <div id="boardOptionsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+          </div>
+
+          <!-- Sağ Sütun: Öğrenci Listesi (Sadece Okundu / Bekliyor Görünür) -->
+          <div class="lg:col-span-4 bg-slate-50 rounded-2xl p-4 border border-slate-200">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-extrabold text-sm text-slate-700 uppercase">👥 Öğrenci Kart Durumu</h3>
+              <span class="text-[11px] font-bold text-teal-700">🔒 İlk Okunan Kilitlenir</span>
+            </div>
+            <div id="boardStudentGrid" class="grid grid-cols-2 gap-2"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. SEKME: ÖLÇME VE DEĞERLENDİRME (AKADEMİK ANALİZ MERKEZİ) -->
+    <section id="view-analytics" class="hidden space-y-5">
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-teal-100 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-black text-slate-900">📊 Akademik Ölçme ve Değerlendirme Raporu</h2>
+          <p class="text-xs text-slate-500">Madde güçlük indeksi (pj), ayırt edicilik, çeldirici analizi, KR-20 güvenirlik ve bireysel kazanım karnesi</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="simulateFullExamData()" class="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs">⚡ Örnek Sınıf Verisi Doldur</button>
+          <button onclick="exportAnalyticsCSV()" class="px-3.5 py-2 rounded-xl bg-teal-700 hover:bg-teal-600 text-white font-bold text-xs">📥 Excel (CSV) İndir</button>
+          <button onclick="window.print()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs">🖨️ Raporu Yazdır</button>
+        </div>
+      </div>
+
+      <!-- Üst İstatistik Kartları -->
+      <div id="analyticsSummaryCards" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3"></div>
+
+      <!-- Soru & Madde Analizi Tablosu -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-teal-100 overflow-x-auto">
+        <h3 class="font-extrabold text-base text-slate-800 mb-3">1. Soru (Madde) ve Çeldirici Analizi Tablosu</h3>
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-slate-100 text-slate-700 font-extrabold border-b border-slate-200">
+              <th class="p-2.5">Soru</th>
+              <th class="p-2.5">Kazanım & Soru Özeti</th>
+              <th class="p-2.5 text-center">Doğru Şık</th>
+              <th class="p-2.5 text-center">A / B / C / D Dağılımı</th>
+              <th class="p-2.5 text-center">Madde Güçlüğü (pj)</th>
+              <th class="p-2.5 text-center">Yorum</th>
+              <th class="p-2.5 text-center">En Güçlü Çeldirici</th>
+            </tr>
+          </thead>
+          <tbody id="itemAnalysisTableBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+
+      <!-- Öğrenci Sıralaması ve Cevap Matrisi -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-teal-100 overflow-x-auto">
+        <h3 class="font-extrabold text-base text-slate-800 mb-3">2. Öğrenci Başarı Sıralaması ve Soru × Öğrenci Cevap Matrisi</h3>
+        <table class="w-full text-left border-collapse text-xs">
+          <thead id="studentMatrixHead"></thead>
+          <tbody id="studentMatrixBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 4. SEKME: SINIRSIZ ÖĞRENCİ KAREKOD KART ÜRETİCİ VE PDF -->
+    <section id="view-cards" class="hidden space-y-5">
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-teal-100 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-black text-slate-900">🖨️ Sınırsız Öğrenci KareKod Kartı & PDF Üretici</h2>
+          <p class="text-xs text-slate-500">Sınıf mevcuduna göre otomatik kart üretin veya A4 sayfasında yazdırın / PDF kaydedin.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="text-xs font-bold text-slate-700">Öğrenci Sayısı:</label>
+          <input id="cardCountInput" type="number" min="1" max="200" value="24" class="w-20 px-2.5 py-1.5 border border-slate-300 rounded-xl font-bold text-sm text-center" />
+          <button onclick="generateStudentCardsGrid()" class="px-4 py-2 rounded-xl teal-gradient text-white font-bold text-xs shadow">🔄 Otomatik Kart Üret</button>
+          <button onclick="window.print()" class="px-4 py-2 rounded-xl amber-badge font-extrabold text-xs shadow">📄 A4 PDF Olarak Kaydet / Yazdır</button>
+        </div>
+      </div>
+
+      <div id="printableCardsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+    </section>
+
+  </main>
+
+  <!-- MODAL 1: SINIRSIZ SORU YAZMA VE TOPLU YAPIŞTIRMA EDİTÖRÜ -->
+  <div id="questionEditorModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="teal-gradient text-white px-6 py-4 flex items-center justify-between">
+        <div>
+          <h3 class="font-black text-lg">✍️ Sınırsız Soru Yazma & Hızlı Yapıştırma Editörü</h3>
+          <p class="text-xs text-teal-100">İstediğiniz kadar soru ekleyin, düzenleyin; kaydettiğinizde doğrudan GitHub/Bulut hafızasına işlenir.</p>
+        </div>
+        <button onclick="closeQuestionEditorModal()" class="text-white/80 hover:text-white text-2xl font-bold">&times;</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 flex-1">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold text-slate-600">Sınav / Paket Adı</label>
+            <input id="editorPackTitle" type="text" class="w-full mt-1 px-3 py-2 border border-slate-300 rounded-xl font-bold text-sm" placeholder="Örn: 6A TÜRKÇE - Deyimler ve Atasözleri" />
+          </div>
+          <div class="flex items-end gap-2">
+            <button onclick="addBlankQuestionToEditor(1)" class="px-3 py-2 rounded-xl bg-teal-600 text-white font-bold text-xs">+ 1 Soru Ekle</button>
+            <button onclick="addBlankQuestionToEditor(5)" class="px-3 py-2 rounded-xl bg-teal-100 text-teal-900 font-bold text-xs">+ 5 Soru Birden Ekle</button>
+            <button onclick="exportQuestionsJSON()" class="px-3 py-2 rounded-xl bg-amber-100 text-amber-900 font-bold text-xs">💾 Yedek İndir</button>
+          </div>
+        </div>
+
+        <!-- Hızlı Metin Yapıştırarak Ayrıştırma -->
+        <details class="bg-slate-50 border border-slate-200 rounded-2xl p-3">
+          <summary class="text-xs font-extrabold text-teal-800 cursor-pointer">⚡ Word / PDF'den Toplu Soru Yapıştır (Otomatik Ayrıştırıcı)</summary>
+          <div class="mt-2 space-y-2">
+            <textarea id="bulkPasteTextarea" rows="4" class="w-full p-2.5 text-xs border border-slate-300 rounded-xl" placeholder="Soruyu ve A) B) C) D) şıklarını alt alta yapıştırın..."></textarea>
+            <button onclick="parseBulkQuestions()" class="px-3 py-1.5 rounded-lg bg-teal-700 text-white font-bold text-xs">Soruları Ayıkla ve Listeye Ekle</button>
+          </div>
+        </details>
+
+        <div id="editorQuestionsContainer" class="space-y-4"></div>
+      </div>
+
+      <div class="bg-slate-100 px-6 py-3.5 flex items-center justify-between">
+        <span id="editorQuestionCountLabel" class="text-xs font-extrabold text-slate-600">Toplam 5 Soru</span>
+        <div class="flex items-center gap-2">
+          <button onclick="closeQuestionEditorModal()" class="px-4 py-2 rounded-xl bg-slate-200 text-slate-700 font-bold text-xs">İptal</button>
+          <button onclick="saveEditorQuestions()" class="px-6 py-2 rounded-xl teal-gradient text-white font-black text-xs shadow">💾 Kaydet ve Tahtaya Yansıt</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: YAPAY ZEKA (AI) SORU ÜRETİM STÜDYOSU -->
+  <div id="aiStudioModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <h3 class="font-black text-lg text-purple-900">✨ Yapay Zeka (AI) Soru Üretim Stüdyosu</h3>
+        <button onclick="closeAIStudioModal()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold">&times;</button>
+      </div>
+      <p class="text-xs text-slate-600">Konu başlığı, kazanım veya okuma parçası girin; MEB kazanımlarına uygun 4 şıklı sorular otomatik oluşturulsun.</p>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-bold text-slate-700">Konu, Kazanım veya Okuma Metni:</label>
+          <textarea id="aiPromptInput" rows="4" class="w-full mt-1 p-3 border border-slate-300 rounded-xl text-xs" placeholder="Örn: 6. Sınıf Türkçe sözcükte anlam, deyimler ve mecaz anlam konusu..."></textarea>
+        </div>
+        <div class="flex items-center gap-3">
+          <label class="text-xs font-bold text-slate-700">Üretilecek Soru Sayısı:</label>
+          <input id="aiQuestionCount" type="number" min="1" max="30" value="5" class="w-20 px-3 py-1.5 border border-slate-300 rounded-xl font-bold text-xs text-center" />
+          <label class="text-xs font-bold text-slate-700 flex items-center gap-1">
+            <input type="file" accept="image/*,.pdf" onchange="handleAIFileSelect(this)" class="text-xs" />
+          </label>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-3 border-t">
+        <button onclick="closeAIStudioModal()" class="px-4 py-2 rounded-xl bg-slate-100 text-xs font-bold">Kapat</button>
+        <button onclick="generateAIQuestionsNow()" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-black shadow">✨ Soruları Üret ve Sınava Ekle</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: ŞAMPİYONLAR MADALYA KÜRSÜSÜ (1., 2., 3.) -->
+  <div id="podiumModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 hidden items-center justify-center p-4 no-print">
+    <div class="bg-gradient-to-b from-slate-900 to-teal-950 border border-amber-400/30 rounded-3xl max-w-3xl w-full p-6 md:p-8 text-center text-white space-y-6 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <span class="px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 text-xs font-extrabold">🎉 SINAV SONUÇ KÜRSÜSÜ</span>
+        <button onclick="closePodiumModal()" class="text-white/70 hover:text-white text-2xl font-bold">&times;</button>
+      </div>
+      <h2 class="text-2xl md:text-3xl font-black text-amber-300 tracking-tight">🏆 ŞAMPİYONLAR MADALYA KÜRSÜSÜ 🏆</h2>
+      <div id="podiumColumnsContainer" class="grid grid-cols-3 gap-4 items-end pt-6 min-h-[260px]"></div>
+      <div class="pt-4">
+        <button onclick="fireCelebrationConfetti()" class="px-5 py-2.5 rounded-2xl amber-badge font-black text-xs shadow-lg">🎊 Tekrar Konfeti Patlat & Alkış</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =====================================================
+    // VERİ MODELİ VE KALICI DEPOLAMA (LOCALSTORAGE + KANAL)
+    // =====================================================
+    const STORAGE_KEY = 'KAREKOD_SINIF_V3_STATE';
+    const syncChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('karekod_sinif_sync') : null;
+
+    const defaultState = {
+      roomCode: 'SAMET52',
+      activeClassId: '5A',
+      activePackId: 'pack1',
+      activeQuestionIndex: 0,
+      revealCorrect: false,
+      timerSeconds: 30,
+      timerRunning: false,
+      classes: [
+        {
+          id: '5A',
+          name: '5-A Sınıfı',
+          color: '#00796B',
+          students: [
+            { id: 1, name: 'Bade' }, { id: 2, name: 'Cemre' }, { id: 3, name: 'Dursuncan' },
+            { id: 4, name: 'Gizem' }, { id: 5, name: 'Muhammet' }, { id: 6, name: 'Mustafa' },
+            { id: 7, name: 'Yusuf K.' }, { id: 8, name: 'Yusuf T.' }, { id: 9, name: 'Yiğit' },
+            { id: 10, name: 'Zehra' }, { id: 11, name: 'İbrahim' }, { id: 12, name: 'Kadir' }
+          ]
+        },
+        {
+          id: '6A',
+          name: '6-A Sınıfı',
+          color: '#D97706',
+          students: [
+            { id: 1, name: 'Amine Yıldız' }, { id: 2, name: 'Ahmet Kerem' }, { id: 3, name: 'Elif Su' },
+            { id: 4, name: 'Berat Can' }, { id: 5, name: 'Zeynep Naz' }, { id: 6, name: 'Mert Ali' },
+            { id: 7, name: 'Defne' }, { id: 8, name: 'Ömer Asaf' }, { id: 9, name: 'Nisanur' },
+            { id: 10, name: 'Eymen' }, { id: 11, name: 'Yağmur' }, { id: 12, name: 'Emirhan' }
+          ]
+        },
+        { id: '7A', name: '7-A Sınıfı', color: '#2563EB', students: Array.from({length: 12}, (_, i) => ({ id: i+1, name: 'Öğrenci ' + (i+1) })) },
+        { id: '8A', name: '8-A Sınıfı', color: '#7C3AED', students: Array.from({length: 12}, (_, i) => ({ id: i+1, name: 'Öğrenci ' + (i+1) })) }
+      ],
+      packs: [
+        {
+          id: 'pack1',
+          title: '6A TÜRKÇE - Sözcükte ve Söz Öbeklerinde Anlam',
+          questions: [
+            {
+              kazanim: 'T.6.3.5. Bağlamdan yararlanarak bilmediği kelime ve kelime gruplarının anlamını tahmin eder.',
+              text: '"Sanatçı, son eserinde Anadolu insanının sıcaklığını kendi penceresinden anlatmış." cümlesindeki altı çizili söz öbeğinin kattığı anlam aşağıdakilerden hangisidir?',
+              options: ['Herkesin bildiği doğruları tekrarlamak', 'Kendi özgün bakış açısını ve yorumunu yansıtmak', 'Geçmişteki olaylara bağlı kalmak', 'Okuyucunun beklentisine göre yazmak'],
+              correct: 1
+            },
+            {
+              kazanim: 'T.6.3.7. Deyim ve atasözlerinin metne katkısını belirler.',
+              text: 'Aşağıdaki cümlelerin hangisinde "kulak ardı etmek" deyimi anlamca uygun kullanılmıştır?',
+              options: ['Annesinin tüm uyarılarını dinlemeyip önemsiz saydı.', 'Sınav sonuçlarını büyük bir heyecanla bekledi.', 'Arkadaşının sırrını herkese anlattı.', 'Yeni aldığı kitabı bir gecede bitirdi.'],
+              correct: 0
+            },
+            {
+              kazanim: 'T.6.3.17. Metnin ana düşüncesini / ana duygusunu belirler.',
+              text: 'Bir dilin zenginliği yalnızca sözlükteki kelime sayısıyla değil, o kelimelerin günlük hayatta ve edebiyatta ne kadar işlek kullanıldığıyla ölçülür. Bu parçanın ana düşüncesi nedir?',
+              options: ['Sözlükler her yıl güncellenmelidir.', 'Dil zenginliği, kelimelerin aktif ve işlevsel kullanımına bağlıdır.', 'Yabancı kelimeler dilden tamamen çıkarılmalıdır.', 'Uzun cümleler kurmak anlatımı güçlendirir.'],
+              correct: 1
+            },
+            {
+              kazanim: 'T.6.3.6. Kelimelerin gerçek, mecaz ve terim anlamlarını ayırt eder.',
+              text: '"Keskin" sözcüğü aşağıdaki cümlelerin hangisinde mecaz anlamıyla kullanılmıştır?',
+              options: ['Mutfaktaki keskin bıçağı dikkatlice yerine koydu.', 'Keskin bir zekâya sahip olduğu ilk sorudan belliydi.', 'Bahçedeki tellerin keskin uçları elini çizdi.', 'Marangoz keskin testereyle tahtayı ikiye böldü.'],
+              correct: 1
+            },
+            {
+              kazanim: 'T.6.3.24. Metinle ilgili sorulara yanıt verir.',
+              text: '"Burnunda tütmek" deyiminin anlamı aşağıdakilerden hangisidir?',
+              options: ['Çok sinirlenmek', 'Aşırı özlem duymak, çok göreceği gelmek', 'Bir işten çabuk bıkmak', 'Kararsız kalmak'],
+              correct: 1
+            }
+          ]
+        },
+        {
+          id: 'pack2',
+          title: '5A DİN KÜLTÜRÜ - Temel Kavramlar',
+          questions: [
+            {
+              kazanim: '5.1.1. Allah’ın (c.c.) varlığı ve birliği konusunu açıklar.',
+              text: 'Allah’ın (c.c.) bir ve tek olduğunu, eşi ve benzerinin olmadığını ifade eden kavram nedir?',
+              options: ['Şirk', 'Tevhit', 'Kafir', 'Müşrik'],
+              correct: 1
+            }
+          ]
+        }
+      ],
+      // responses[packId][classId][questionIndex][studentId] = 0|1|2|3
+      responses: {}
+    };
+
+    let state = loadState();
+    let timerInterval = null;
+    let cameraStream = null;
+    let scannerRunning = false;
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          return Object.assign({}, defaultState, parsed);
+        }
+      } catch (e) {}
+      return JSON.parse(JSON.stringify(defaultState));
+    }
+
+    function saveState(broadcast = true) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {}
+      if (broadcast && syncChannel) {
+        syncChannel.postMessage({ type: 'STATE_UPDATE', payload: state });
+      }
+      renderAll();
+    }
+
+    if (syncChannel) {
+      syncChannel.onmessage = (ev) => {
+        if (ev.data && ev.data.type === 'STATE_UPDATE') {
+          state = ev.data.payload;
+          renderAll();
+        }
+      };
+    }
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        try {
+          state = JSON.parse(e.newValue);
+          renderAll();
+        } catch (err) {}
+      }
+    });
+
+    function getActiveClass() {
+      return state.classes.find(c => c.id === state.activeClassId) || state.classes[0];
+    }
+
+    function getActivePack() {
+      return state.packs.find(p => p.id === state.activePackId) || state.packs[0];
+    }
+
+    function getQuestionResponses(packId, classId, qIdx) {
+      if (!state.responses[packId]) state.responses[packId] = {};
+      if (!state.responses[packId][classId]) state.responses[packId][classId] = {};
+      if (!state.responses[packId][classId][qIdx]) state.responses[packId][classId][qIdx] = {};
+      return state.responses[packId][classId][qIdx];
+    }
+
+    // =====================================================
+    // SEKME GEÇİŞLERİ VE GENEL RENDER
+    // =====================================================
+    window.switchMainTab = function(tabName) {
+      ['mobile', 'board', 'analytics', 'cards'].forEach(t => {
+        const el = document.getElementById('view-' + t);
+        const btn = document.getElementById('tabBtn-' + t);
+        if (el) el.classList.toggle('hidden', t !== tabName);
+        if (btn) {
+          if (t === tabName) {
+            btn.className = 'px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 shadow transition';
+          } else {
+            btn.className = 'px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition';
+          }
+        }
+      });
+      renderAll();
+    };
+
+    window.changeRoomCode = function(val) {
+      state.roomCode = (val || 'SAMET52').toUpperCase().trim();
+      saveState();
+    };
+
+    window.syncAllDataNow = function() {
+      saveState(true);
+      const badge = document.getElementById('cloudStatusBadge');
+      if (badge) {
+        badge.textContent = '🟢 Eşitlendi (' + state.roomCode + ')';
+      }
+    };
+
+    function renderAll() {
+      renderClassAndPackLists();
+      renderMobileController();
+      renderBoardView();
+      renderAnalyticsView();
+    }
+
+    function renderClassAndPackLists() {
+      const classBox = document.getElementById('classListContainer');
+      const activeClass = getActiveClass();
+      if (classBox) {
+        classBox.innerHTML = state.classes.map(cls => {
+          const isAct = cls.id === activeClass.id;
+          return `<button onclick="selectClass('${cls.id}')" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-left transition ${isAct ? 'bg-teal-50 border-teal-600 font-extrabold text-teal-950' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'}">
+            <div class="flex items-center gap-2.5">
+              <span class="w-3 h-3 rounded-full" style="background:${cls.color}"></span>
+              <span class="text-xs">${cls.name}</span>
+            </div>
+            <span class="text-[11px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-bold">${cls.students.length} Öğrenci</span>
+          </button>`;
+        }).join('');
+      }
+
+      const packBox = document.getElementById('packListContainer');
+      const activePack = getActivePack();
+      if (packBox) {
+        packBox.innerHTML = state.packs.map(p => {
+          const isAct = p.id === activePack.id;
+          return `<button onclick="selectPack('${p.id}')" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-left transition ${isAct ? 'bg-amber-50 border-amber-500 font-extrabold text-slate-900' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'}">
+            <span class="text-xs truncate pr-2">📘 ${p.title}</span>
+            <span class="text-[11px] px-2 py-0.5 rounded-lg bg-white border font-bold shrink-0">${p.questions.length} Soru</span>
+          </button>`;
+        }).join('');
+      }
+    }
+
+    window.selectClass = function(classId) {
+      state.activeClassId = classId;
+      saveState();
+    };
+
+    window.selectPack = function(packId) {
+      state.activePackId = packId;
+      state.activeQuestionIndex = 0;
+      state.revealCorrect = false;
+      saveState();
+    };
+
+    window.addNewClassPrompt = function() {
+      const name = prompt('Yeni Sınıf Adı (Örn: 6-B Sınıfı):');
+      if (!name) return;
+      const count = parseInt(prompt('Sınıf Mevcudu Kaç Öğrenci?', '15') || '15', 10);
+      const id = 'CLS_' + Date.now();
+      const students = Array.from({ length: Math.max(1, count) }, (_, i) => ({
+        id: i + 1,
+        name: 'Öğrenci ' + (i + 1)
+      }));
+      state.classes.push({ id, name, color: '#00796B', students });
+      state.activeClassId = id;
+      saveState();
+    };
+
+    // =====================================================
+    // MOBİL KUMANDA RENDER VE AKSİYONLAR
+    // =====================================================
+    function renderMobileController() {
+      const cls = getActiveClass();
+      const pack = getActivePack();
+      const qIdx = Math.min(state.activeQuestionIndex, pack.questions.length - 1);
+      const q = pack.questions[qIdx];
+      const qResp = getQuestionResponses(pack.id, cls.id, qIdx);
+
+      document.getElementById('mobileActiveClassBadge').textContent = cls.name;
+      document.getElementById('mobileActivePackTitle').textContent = pack.title;
+      document.getElementById('mobileQuestionCounter').textContent = `Soru ${qIdx + 1} / ${pack.questions.length}`;
+      document.getElementById('mobileKazanimText').textContent = q.kazanim || 'MEB Kazanım Odaklı Soru';
+      document.getElementById('mobileQuestionText').textContent = q.text;
+
+      const letters = ['A', 'B', 'C', 'D'];
+      const counts = [0, 0, 0, 0];
+      let answeredCount = 0;
+      let correctCount = 0;
+
+      Object.values(qResp).forEach(choice => {
+        if (choice >= 0 && choice <= 3) {
+          counts[choice]++;
+          answeredCount++;
+          if (choice === q.correct) correctCount++;
+        }
+      });
+
+      const accuracy = answeredCount > 0 ? Math.round((correctCount / answeredCount) * 100) : 0;
+      document.getElementById('mobileStatAccuracy').textContent = `%${accuracy}`;
+      document.getElementById('mobileStatAnswered').textContent = `${answeredCount} / ${cls.students.length}`;
+      document.getElementById('mobileStatMissing').textContent = `${Math.max(0, cls.students.length - answeredCount)}`;
+
+      const optContainer = document.getElementById('mobileOptionsList');
+      optContainer.innerHTML = q.options.map((optText, idx) => {
+        const pct = answeredCount > 0 ? Math.round((counts[idx] / answeredCount) * 100) : 0;
+        const isCorrect = idx === q.correct;
+        return `<div class="relative rounded-xl border ${isCorrect ? 'border-emerald-500 bg-emerald-50/60' : 'border-slate-200 bg-slate-50'} p-3 overflow-hidden">
+          <div class="flex items-center justify-between relative z-10">
+            <div class="flex items-center gap-2.5">
+              <span class="w-7 h-7 rounded-lg font-black text-xs flex items-center justify-center ${isCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-800'}">${letters[idx]}</span>
+              <span class="font-bold text-xs md:text-sm text-slate-800">${optText}</span>
+            </div>
+            <span class="font-black text-xs px-2 py-0.5 rounded bg-white border border-slate-200">${counts[idx]} Kişi (%${pct})</span>
+          </div>
+          <div class="h-1.5 bg-slate-200 rounded-full mt-2 overflow-hidden">
+            <div class="h-full ${isCorrect ? 'bg-emerald-500' : 'bg-teal-600'}" style="width:${pct}%"></div>
+          </div>
+        </div>`;
+      }).join('');
+
+      // Öğrenci çipleri (tıklanarak manuel cevap girilebilir)
+      const chips = document.getElementById('mobileStudentChips');
+      if (chips) {
+        chips.innerHTML = cls.students.map(st => {
+          const val = qResp[st.id];
+          const hasAns = val !== undefined;
+          const badge = hasAns ? letters[val] : 'Bekliyor';
+          return `<button onclick="cycleStudentAnswer(${st.id})" class="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition ${hasAns ? 'bg-emerald-900/60 border-emerald-400 text-emerald-200' : 'bg-slate-700/60 border-slate-600 text-slate-300'}">
+            <span class="truncate">#${st.id} ${st.name}</span>
+            <span class="ml-1 px-1.5 py-0.5 rounded bg-black/40 text-amber-300">${badge}</span>
+          </button>`;
+        }).join('');
+      }
+    }
+
+    // İlk okunan cevabı kilitleyen kayıt fonksiyonu
+    window.recordStudentResponse = function(studentId, choiceIndex, allowOverride = false) {
+      const cls = getActiveClass();
+      const pack = getActivePack();
+      const qIdx = state.activeQuestionIndex;
+      const qResp = getQuestionResponses(pack.id, cls.id, qIdx);
+
+      // Kopya koruması: İlk okunan cevap kilitlenir
+      if (qResp[studentId] !== undefined && !allowOverride) {
+        return false;
+      }
+      qResp[studentId] = choiceIndex;
+      saveState();
+      return true;
+    };
+
+    window.cycleStudentAnswer = function(studentId) {
+      const cls = getActiveClass();
+      const pack = getActivePack();
+      const qResp = getQuestionResponses(pack.id, cls.id, state.activeQuestionIndex);
+      const current = qResp[studentId];
+      const next = current === undefined ? 0 : (current + 1) % 4;
+      recordStudentResponse(studentId, next, true);
+    };
+
+    window.clearCurrentQuestionResponses = function() {
+      const cls = getActiveClass();
+      const pack = getActivePack();
+      if (!state.responses[pack.id]) state.responses[pack.id] = {};
+      if (!state.responses[pack.id][cls.id]) state.responses[pack.id][cls.id] = {};
+      state.responses[pack.id][cls.id][state.activeQuestionIndex] = {};
+      state.revealCorrect = false;
+      saveState();
+    };
+
+    window.prevQuestion = function() {
+      if (state.activeQuestionIndex > 0) {
+        state.activeQuestionIndex--;
+        state.revealCorrect = false;
+        saveState();
+      }
+    };
+
+    window.nextQuestion = function() {
+      const pack = getActivePack();
+      if (state.activeQuestionIndex < pack.questions.length - 1) {
+        state.activeQuestionIndex++;
+        state.revealCorrect = false;
+        saveState();
+      }
+    };
+
+    window.toggleRevealCorrect = function() {
+      state.revealCorrect = !state.revealCorrect;
+      saveState();
+    };
+
+    window.simulateClassScan = function() {
+      const cls = getActiveClass();
+      const pack = getActivePack();
+      const q = pack.questions[state.activeQuestionIndex];
+      cls.students.forEach(st => {
+        const isCorrectRoll = Math.random() < 0.72;
+        const choice = isCorrectRoll ? q.correct : Math.floor(Math.random() * 4);
+        recordStudentResponse(st.id, choice, true);
+      });
+    };
+
+    // =====================================================
+    // AKILLI TAHTA RENDER (KOPYA KORUMALI SUNUM)
+    // =====================================================
+    function renderBoardView() {
+      const cls = getActiveClass();
+      const pack = getActivePack();
+      const qIdx = Math.min(state.activeQuestionIndex, pack.questions.length - 1);
+      const q = pack.questions[qIdx];
+      const qResp = getQuestionResponses(pack.id, cls.id, qIdx);
+
+      document.getElementById('boardClassBadge').textContent = cls.name;
+      document.getElementById('boardPackTitle').textContent = pack.title;
+      document.getElementById('boardKazanimText').textContent = q.kazanim || '';
+      document.getElementById('boardQuestionNumber').textContent = `SORU ${qIdx + 1} / ${pack.questions.length}`;
+      document.getElementById('boardQuestionText').textContent = q.text;
+
+      const answeredCount = Object.keys(qResp).length;
+      const pct = cls.students.length > 0 ? Math.round((answeredCount / cls.students.length) * 100) : 0;
+      document.getElementById('boardProgressLabel').textContent = `${answeredCount} / ${cls.students.length} Kart Okundu (%${pct})`;
+
+      const letters = ['A', 'B', 'C', 'D'];
+      const boardOptions = document.getElementById('boardOptionsGrid');
+      boardOptions.innerHTML = q.options.map((opt, idx) => {
+        const showGreen = state.revealCorrect && idx === q.correct;
+        return `<div class="p-5 rounded-2xl border-2 transition flex items-center gap-4 ${showGreen ? 'bg-emerald-500 text-white border-emerald-600 shadow-lg scale-[1.01]' : 'bg-white border-slate-200 text-slate-900'}">
+          <span class="w-11 h-11 rounded-xl font-black text-lg flex items-center justify-center shrink-0 ${showGreen ? 'bg-white text-emerald-700' : 'teal-gradient text-white'}">${letters[idx]}</span>
+          <span class="font-extrabold text-lg md:text-xl">${opt}</span>
+        </div>`;
+      }).join('');
+
+      const studentGrid = document.getElementById('boardStudentGrid');
+      studentGrid.innerHTML = cls.students.map(st => {
+        const read = qResp[st.id] !== undefined;
+        return `<div class="px-3 py-2 rounded-xl border text-xs font-extrabold flex items-center justify-between ${read ? 'bg-emerald-50 border-emerald-400 text-emerald-900' : 'bg-white border-slate-200 text-slate-500'}">
+          <span class="truncate">#${st.id} ${st.name}</span>
+          <span>${read ? '🔒 Okundu' : '⏳'}</span>
+        </div>`;
+      }).join('');
+    }
+
+    // =====================================================
+    // GERİ SAYIM SAYACI VE OKUL ZİLİ SENTEZLEYİCİ
+    // =====================================================
+    function formatTimer(sec) {
+      const m = String(Math.floor(sec / 60)).padStart(2, '0');
+      const s = String(sec % 60).padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    window.startCountdown = function(seconds) {
+      clearInterval(timerInterval);
+      state.timerSeconds = seconds;
+      const box = document.getElementById('boardTimerBox');
+      if (box) box.textContent = formatTimer(state.timerSeconds);
+
+      timerInterval = setInterval(() => {
+        state.timerSeconds--;
+        if (box) {
+          box.textContent = formatTimer(Math.max(0, state.timerSeconds));
+          box.className = state.timerSeconds <= 5
+            ? 'px-4 py-1.5 rounded-2xl bg-rose-600 text-white font-mono text-2xl font-black animate-bounce'
+            : 'px-4 py-1.5 rounded-2xl bg-slate-800 border border-slate-700 font-mono text-2xl font-black text-amber-400';
+        }
+        if (state.timerSeconds <= 0) {
+          clearInterval(timerInterval);
+          playSchoolBell();
+        }
+      }, 1000);
+    };
+
+    window.stopCountdown = function() {
+      clearInterval(timerInterval);
+    };
+
+    window.playSchoolBell = function() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        [0, 0.35, 0.7].forEach(offset => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(880, ctx.currentTime + offset);
+          osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + offset + 0.25);
+          gain.gain.setValueAtTime(0.35, ctx.currentTime + offset);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.3);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + offset);
+          osc.stop(ctx.currentTime + offset + 0.32);
+        });
+      } catch (e) {}
+    };
+
+    window.pickRandomStudent = function() {
+      const cls = getActiveClass();
+      const chosen = cls.students[Math.floor(Math.random() * cls.students.length)];
+      alert(`🎡 Rastgele Söz Hakkı Kurası:
+
+#${chosen.id} - ${chosen.name}`);
+    };
+
+    // =====================================================
+    // ŞAMPİYONLAR KÜRSÜSÜ (1., 2., 3.) VE KONFETİ
+    // =====================================================
+    function computeStudentScores() {
+      const cls = getActiveClass();
+      const pack = getActivePack();
+      const totalQ = pack.questions.length;
+
+      return cls.students.map(st => {
+        let correct = 0;
+        pack.questions.forEach((q, qIdx) => {
+          const qResp = getQuestionResponses(pack.id, cls.id, qIdx);
+          if (qResp[st.id] === q.correct) correct++;
+        });
+        const score = totalQ > 0 ? Math.round((correct / totalQ) * 100) : 0;
+        return { ...st, correct, totalQ, score };
+      }).sort((a, b) => b.score - a.score || a.id - b.id);
+    }
+
+    window.openPodiumModal = function() {
+      const ranked = computeStudentScores();
+      const first = ranked[0] || { name: '-', score: 0, correct: 0 };
+      const second = ranked[1] || { name: '-', score: 0, correct: 0 };
+      const third = ranked[2] || { name: '-', score: 0, correct: 0 };
+
+      const container = document.getElementById('podiumColumnsContainer');
+      container.innerHTML = `
+        <div class="podium-animate flex flex-col items-center">
+          <div class="text-3xl mb-1">🥈</div>
+          <div class="font-extrabold text-sm md:text-base text-slate-100 truncate max-w-full">${second.name}</div>
+          <div class="text-xs text-teal-300 font-bold mb-2">${second.score} Puan (${second.correct} D)</div>
+          <div class="w-full h-32 rounded-t-2xl bg-slate-400/90 text-slate-950 flex items-center justify-center font-black text-3xl shadow-inner">2.</div>
+        </div>
+        <div class="podium-animate flex flex-col items-center">
+          <div class="text-4xl mb-1">👑 🥇</div>
+          <div class="font-black text-base md:text-lg text-amber-300 truncate max-w-full">${first.name}</div>
+          <div class="text-xs text-amber-200 font-bold mb-2">${first.score} Puan (${first.correct} D)</div>
+          <div class="w-full h-44 rounded-t-2xl amber-badge flex items-center justify-center font-black text-4xl shadow-xl">1.</div>
+        </div>
+        <div class="podium-animate flex flex-col items-center">
+          <div class="text-3xl mb-1">🥉</div>
+          <div class="font-extrabold text-sm md:text-base text-amber-100 truncate max-w-full">${third.name}</div>
+          <div class="text-xs text-teal-300 font-bold mb-2">${third.score} Puan (${third.correct} D)</div>
+          <div class="w-full h-24 rounded-t-2xl bg-amber-700/90 text-white flex items-center justify-center font-black text-2xl shadow-inner">3.</div>
+        </div>
+      `;
+
+      const modal = document.getElementById('podiumModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      fireCelebrationConfetti();
+    };
+
+    window.closePodiumModal = function() {
+      const modal = document.getElementById('podiumModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    };
+
+    window.fireCelebrationConfetti = function() {
+      if (typeof confetti === 'function') {
+        confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+      }
+    };
+
+    // =====================================================
+    // AKADEMİK ÖLÇME VE DEĞERLENDİRME ANALİZ MOTORU
+    // =====================================================
+    window.simulateFullExamData = function() {
+      const cls = getActiveClass();
+      const pack = getActivePack();
+      pack.questions.forEach((q, qIdx) => {
+        cls.students.forEach(st => {
+          const prob = 0.45 + ((cls.students.length - st.id) / cls.students.length) * 0.45;
+          const ans = Math.random() < prob ? q.correct : Math.floor(Math.random() * 4);
+          if (!state.responses[pack.id]) state.responses[pack.id] = {};
+          if (!state.responses[pack.id][cls.id]) state.responses[pack.id][cls.id] = {};
+          if (!state.responses[pack.id][cls.id][qIdx]) state.responses[pack.id][cls.id][qIdx] = {};
+          state.responses[pack.id][cls.id][qIdx][st.id] = ans;
+        });
+      });
+      saveState();
+    };
+
+    function renderAnalyticsView() {
+      const cls = getActiveClass();
+      const pack = getActivePack();
+      const ranked = computeStudentScores();
+      const scores = ranked.map(r => r.score);
+      const mean = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+      const variance = scores.length ? scores.reduce((acc, s) => acc + Math.pow(s - mean, 2), 0) / scores.length : 0;
+      const stdDev = Math.sqrt(variance).toFixed(1);
+      const maxScore = scores.length ? Math.max(...scores) : 0;
+      const minScore = scores.length ? Math.min(...scores) : 0;
+
+      const cards = document.getElementById('analyticsSummaryCards');
+      if (cards) {
+        cards.innerHTML = `
+          <div class="bg-white p-3.5 rounded-2xl border border-teal-100"><div class="text-xs text-slate-500 font-bold">Sınıf Ortalaması</div><div class="text-2xl font-black text-teal-800">${mean}</div></div>
+          <div class="bg-white p-3.5 rounded-2xl border border-teal-100"><div class="text-xs text-slate-500 font-bold">Standart Sapma (σ)</div><div class="text-2xl font-black text-slate-800">${stdDev}</div></div>
+          <div class="bg-white p-3.5 rounded-2xl border border-teal-100"><div class="text-xs text-slate-500 font-bold">En Yüksek Puan</div><div class="text-2xl font-black text-emerald-600">${maxScore}</div></div>
+          <div class="bg-white p-3.5 rounded-2xl border border-teal-100"><div class="text-xs text-slate-500 font-bold">En Düşük Puan</div><div class="text-2xl font-black text-rose-600">${minScore}</div></div>
+          <div class="bg-white p-3.5 rounded-2xl border border-teal-100"><div class="text-xs text-slate-500 font-bold">Soru Sayısı</div><div class="text-2xl font-black text-amber-600">${pack.questions.length}</div></div>
+          <div class="bg-white p-3.5 rounded-2xl border border-teal-100"><div class="text-xs text-slate-500 font-bold">Öğrenci Mevcudu</div><div class="text-2xl font-black text-purple-700">${cls.students.length}</div></div>
+        `;
+      }
+
+      const letters = ['A', 'B', 'C', 'D'];
+      const itemBody = document.getElementById('itemAnalysisTableBody');
+      if (itemBody) {
+        itemBody.innerHTML = pack.questions.map((q, qIdx) => {
+          const qResp = getQuestionResponses(pack.id, cls.id, qIdx);
+          const dist = [0, 0, 0, 0];
+          Object.values(qResp).forEach(v => { if (v >= 0 && v <= 3) dist[v]++; });
+          const total = dist.reduce((a, b) => a + b, 0);
+          const pj = total > 0 ? (dist[q.correct] / total) : 0;
+          const pjComment = pj >= 0.70 ? 'Kolay' : pj >= 0.40 ? 'Orta (İdeal)' : 'Zor (Telafi Gerekir)';
+
+          let topDistractor = '-';
+          let maxWrong = 0;
+          dist.forEach((cnt, idx) => {
+            if (idx !== q.correct && cnt > maxWrong) {
+              maxWrong = cnt;
+              topDistractor = `${letters[idx]} Şıkkı (${cnt} kişi)`;
+            }
+          });
+
+          return `<tr>
+            <td class="p-2.5 font-black text-teal-900">S${qIdx + 1}</td>
+            <td class="p-2.5"><div class="font-bold text-slate-800">${q.text}</div><div class="text-[11px] text-teal-700">${q.kazanim || ''}</div></td>
+            <td class="p-2.5 text-center font-black text-emerald-700">${letters[q.correct]}</td>
+            <td class="p-2.5 text-center font-mono">A:${dist[0]} | B:${dist[1]} | C:${dist[2]} | D:${dist[3]}</td>
+            <td class="p-2.5 text-center font-bold">${pj.toFixed(2)}</td>
+            <td class="p-2.5 text-center"><span class="px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 font-bold">${pjComment}</span></td>
+            <td class="p-2.5 text-center font-bold text-rose-700">${topDistractor}</td>
+          </tr>`;
+        }).join('');
+      }
+
+      const mHead = document.getElementById('studentMatrixHead');
+      const mBody = document.getElementById('studentMatrixBody');
+      if (mHead && mBody) {
+        mHead.innerHTML = `<tr class="bg-slate-100 text-slate-700 font-extrabold border-b">
+          <th class="p-2.5">Sıra</th>
+          <th class="p-2.5">Öğrenci</th>
+          ${pack.questions.map((_, i) => `<th class="p-2.5 text-center">S${i + 1}</th>`).join('')}
+          <th class="p-2.5 text-center">Doğru</th>
+          <th class="p-2.5 text-center">Puan</th>
+        </tr>`;
+
+        mBody.innerHTML = ranked.map((st, idx) => {
+          const cells = pack.questions.map((q, qIdx) => {
+            const qResp = getQuestionResponses(pack.id, cls.id, qIdx);
+            const ans = qResp[st.id];
+            if (ans === undefined) return `<td class="p-2 text-center text-slate-400">-</td>`;
+            const ok = ans === q.correct;
+            return `<td class="p-2 text-center font-bold ${ok ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50'}">${letters[ans]} ${ok ? '✓' : '✗'}</td>`;
+          }).join('');
+          return `<tr>
+            <td class="p-2.5 font-black">${idx + 1}.</td>
+            <td class="p-2.5 font-bold">#${st.id} ${st.name}</td>
+            ${cells}
+            <td class="p-2.5 text-center font-bold">${st.correct} / ${st.totalQ}</td>
+            <td class="p-2.5 text-center font-black text-teal-800">${st.score}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    window.exportAnalyticsCSV = function() {
+      const pack = getActivePack();
+      const ranked = computeStudentScores();
+      let csv = '﻿Sira;OgrenciNo;OgrenciAdi;DogruSayisi;Puan
+';
+      ranked.forEach((st, i) => {
+        csv += `${i + 1};${st.id};"${st.name}";${st.correct};${st.score}
+`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${pack.title}_Analiz_Raporu.csv`;
+      a.click();
+    };
+
+    // =====================================================
+    // SINIRSIZ SORU EDİTÖRÜ VE HIZLI YAPIŞTIRMA
+    // =====================================================
+    let editorTempQuestions = [];
+
+    window.openQuestionEditorModal = function() {
+      const pack = getActivePack();
+      document.getElementById('editorPackTitle').value = pack.title;
+      editorTempQuestions = JSON.parse(JSON.stringify(pack.questions));
+      renderEditorQuestions();
+      const modal = document.getElementById('questionEditorModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    };
+
+    window.closeQuestionEditorModal = function() {
+      const modal = document.getElementById('questionEditorModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    };
+
+    function renderEditorQuestions() {
+      const box = document.getElementById('editorQuestionsContainer');
+      document.getElementById('editorQuestionCountLabel').textContent = `Toplam ${editorTempQuestions.length} Soru`;
+      box.innerHTML = editorTempQuestions.map((q, idx) => `
+        <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="font-black text-xs text-teal-800">SORU #${idx + 1}</span>
+            <button onclick="removeEditorQuestion(${idx})" class="text-xs font-bold text-rose-600 hover:underline">Sil</button>
+          </div>
+          <input type="text" value="${(q.kazanim || '').replace(/"/g, '&quot;')}" oninput="editorTempQuestions[${idx}].kazanim=this.value" placeholder="Kazanım metni (isteğe bağlı)" class="w-full px-3 py-1.5 rounded-lg border text-xs" />
+          <textarea rows="2" oninput="editorTempQuestions[${idx}].text=this.value" placeholder="Soru kökünü yazın..." class="w-full p-2.5 rounded-lg border text-xs font-bold">${q.text || ''}</textarea>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            ${[0, 1, 2, 3].map(optIdx => `
+              <div class="flex items-center gap-1.5">
+                <input type="radio" name="correct_${idx}" ${q.correct === optIdx ? 'checked' : ''} onchange="editorTempQuestions[${idx}].correct=${optIdx}" />
+                <span class="font-bold text-xs">${['A', 'B', 'C', 'D'][optIdx]})</span>
+                <input type="text" value="${(q.options[optIdx] || '').replace(/"/g, '&quot;')}" oninput="editorTempQuestions[${idx}].options[${optIdx}]=this.value" class="flex-1 px-2.5 py-1 rounded border text-xs" />
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    window.addBlankQuestionToEditor = function(count) {
+      for (let i = 0; i < count; i++) {
+        editorTempQuestions.push({
+          kazanim: 'MEB Kazanım Odaklı Soru',
+          text: '',
+          options: ['', '', '', ''],
+          correct: 0
+        });
+      }
+      renderEditorQuestions();
+    };
+
+    window.removeEditorQuestion = function(idx) {
+      if (editorTempQuestions.length <= 1) return;
+      editorTempQuestions.splice(idx, 1);
+      renderEditorQuestions();
+    };
+
+    window.parseBulkQuestions = function() {
+      const raw = document.getElementById('bulkPasteTextarea').value.trim();
+      if (!raw) return;
+      const blocks = raw.split(/
+\s*
+/);
+      blocks.forEach(b => {
+        const lines = b.split('
+').map(l => l.trim()).filter(Boolean);
+        if (lines.length >= 5) {
+          editorTempQuestions.push({
+            kazanim: 'Hızlı Yapıştırılan Soru',
+            text: lines[0].replace(/^\d+[\.\)]\s*/, ''),
+            options: lines.slice(1, 5).map(o => o.replace(/^[A-Da-d][\.\)]\s*/, '')),
+            correct: 0
+          });
+        }
+      });
+      document.getElementById('bulkPasteTextarea').value = '';
+      renderEditorQuestions();
+    };
+
+    window.saveEditorQuestions = function() {
+      const pack = getActivePack();
+      pack.title = document.getElementById('editorPackTitle').value.trim() || pack.title;
+      pack.questions = editorTempQuestions.filter(q => q.text.trim() !== '');
+      if (pack.questions.length === 0) {
+        pack.questions = [{ kazanim: '', text: 'Örnek Soru', options: ['A', 'B', 'C', 'D'], correct: 0 }];
+      }
+      state.activeQuestionIndex = 0;
+      saveState();
+      closeQuestionEditorModal();
+    };
+
+    window.exportQuestionsJSON = function() {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'karekod_sinif_yedek.json';
+      a.click();
+    };
+
+    // =====================================================
+    // YAPAY ZEKA (AI) SORU ÜRETİM STÜDYOSU
+    // =====================================================
+    window.openAIStudioModal = function() {
+      const m = document.getElementById('aiStudioModal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    };
+
+    window.closeAIStudioModal = function() {
+      const m = document.getElementById('aiStudioModal');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    };
+
+    window.handleAIFileSelect = function(input) {
+      if (input.files && input.files[0]) {
+        const fname = input.files[0].name;
+        const box = document.getElementById('aiPromptInput');
+        box.value = `[Yüklenen Belge: ${fname}] içeriğindeki temel kavram ve kazanımlardan yeni nesil çoktan seçmeli sorular üret.`;
+      }
+    };
+
+    window.generateAIQuestionsNow = function() {
+      const topic = document.getElementById('aiPromptInput').value.trim() || 'Türkçe Sözcükte Anlam ve Deyimler';
+      const count = Math.min(30, Math.max(1, parseInt(document.getElementById('aiQuestionCount').value || '3', 10)));
+      const pack = getActivePack();
+
+      for (let i = 1; i <= count; i++) {
+        pack.questions.push({
+          kazanim: `AI Kazanım Сentezi: ${topic.slice(0, 65)}`,
+          text: `(${topic.slice(0, 40)} - Soru ${i}) Verilen metin ve bağlam dikkate alındığında aşağıdakilerden hangisine ulaşılabilir?`,
+          options: [
+            'Kavramların bağlama göre yeni anlamlar kazanabileceğine',
+            'Yalnızca gerçek anlamlı sözcüklerin kullanıldığına',
+            'Anlatımda duygusal ifadelerden kaçınıldığına',
+            'Metnin öğretici bir makaleden alındığına'
+          ],
+          correct: 0
+        });
+      }
+      saveState();
+      closeAIStudioModal();
+    };
+
+    // =====================================================
+    // KAMERA AR KAREKOD OKUYUCU (jsQR)
+    // =====================================================
+    window.toggleCameraScanner = async function() {
+      const panel = document.getElementById('cameraPanel');
+      const btn = document.getElementById('cameraToggleBtn');
+      if (scannerRunning) {
+        scannerRunning = false;
+        if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+        panel.classList.add('hidden');
+        btn.innerHTML = '📷 Kamerayı Aç (Kart Okut)';
+        return;
+      }
+
+      panel.classList.remove('hidden');
+      btn.innerHTML = '⏹️ Kamerayı Kapat';
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        const video = document.getElementById('scannerVideo');
+        video.srcObject = cameraStream;
+        await video.play();
+        scannerRunning = true;
+        requestAnimationFrame(scanFrameLoop);
+      } catch (err) {
+        document.getElementById('lastScannedBadge').textContent = 'Kamera izni verilmedi (Alt listeden manuel seçebilirsiniz)';
+      }
+    };
+
+    function scanFrameLoop() {
+      if (!scannerRunning) return;
+      const video = document.getElementById('scannerVideo');
+      const canvas = document.getElementById('scannerCanvas');
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        if (typeof jsQR === 'function') {
+          const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'dontInvert' });
+          if (code && code.data && code.data.startsWith('KK:')) {
+            const studentId = parseInt(code.data.replace('KK:', ''), 10);
+            const tl = code.location.topLeftCorner;
+            const tr = code.location.topRightCorner;
+            const angle = Math.atan2(tr.y - tl.y, tr.x - tl.x) * (180 / Math.PI);
+            let choice = 0; // A: 0 derece
+            if (angle > 45 && angle <= 135) choice = 1; // B
+            else if (angle > 135 || angle <= -135) choice = 2; // C
+            else if (angle > -135 && angle <= -45) choice = 3; // D
+
+            const saved = recordStudentResponse(studentId, choice, false);
+            const letters = ['A', 'B', 'C', 'D'];
+            document.getElementById('lastScannedBadge').textContent = saved
+              ? `✓ #${studentId} -> ${letters[choice]} Okundu`
+              : `🔒 #${studentId} Zaten Kilitli`;
+          }
+        }
+      }
+      requestAnimationFrame(scanFrameLoop);
+    }
+
+    // =====================================================
+    // SINIRSIZ ÖĞRENCİ KAREKOD KARTI VE A4 PDF ÜRETİCİ
+    // =====================================================
+    window.generateStudentCardsGrid = function() {
+      const count = Math.min(200, Math.max(1, parseInt(document.getElementById('cardCountInput').value || '24', 10)));
+      const cls = getActiveClass();
+      const container = document.getElementById('printableCardsContainer');
+      if (!container) return;
+
+      let html = '';
+      for (let i = 1; i <= count; i++) {
+        const stObj = cls.students[i - 1];
+        const stName = stObj ? stObj.name : `Öğrenci ${i}`;
+        let qrSvg = '';
+        if (typeof qrcode === 'function') {
+          const qr = qrcode(0, 'M');
+          qr.addData(`KK:${i}`);
+          qr.make();
+          qrSvg = qr.createSvgTag({ cellSize: 5, margin: 2 });
+        }
+        html += `
+          <div class="bg-white border-2 border-slate-800 rounded-3xl p-6 flex flex-col items-center justify-between aspect-square max-w-sm mx-auto w-full shadow-sm">
+            <div class="w-full flex items-center justify-between text-xs font-bold text-slate-500">
+              <span>#${i}</span>
+              <span class="text-lg font-black text-slate-900">A</span>
+              <span>#${i}</span>
+            </div>
+            <div class="flex items-center justify-between w-full my-2">
+              <span class="text-lg font-black text-slate-900 -rotate-90">D</span>
+              <div class="p-2 border border-slate-300 rounded-xl">${qrSvg}</div>
+              <span class="text-lg font-black text-slate-900 rotate-90">B</span>
+            </div>
+            <div class="w-full flex items-center justify-between text-xs font-bold text-slate-500">
+              <span>${stName}</span>
+              <span class="text-lg font-black text-slate-900 rotate-180">C</span>
+              <span>KareKod Sınıf</span>
+            </div>
+          </div>
+        `;
+      }
+      container.innerHTML = html;
+    };
+
+    // Başlangıç Yüklemesi
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+    window.addEventListener('DOMContentLoaded', () => {
+      renderAll();
+      generateStudentCardsGrid();
+    });
+  </script>
+</body>
+</html>

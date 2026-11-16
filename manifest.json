@@ -1,0 +1,25 @@
+{
+  "id": "/karekod-sinif/",
+  "name": "KareKod Sınıf — Akıllı Sınıf Yanıt & Ölçme Sistemi",
+  "short_name": "KareKod Sınıf",
+  "description": "KareKod tabanlı akıllı sınıf yanıt, sınav analizi ve ölçme değerlendirme uygulaması.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f0fdfa",
+  "theme_color": "#00796B",
+  "lang": "tr",
+  "categories": [
+    "education",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
